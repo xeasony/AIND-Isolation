@@ -8,6 +8,9 @@ relative strength using tournament.py and include the results in your report.
 """
 import random
 
+no_move = (-1, -1)
+
+directions = [(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2),  (1, 2), (2, -1),  (2, 1)]
 
 class Timeout(Exception):
     """Subclass base exception for code clarity."""
@@ -37,8 +40,57 @@ def custom_score(game, player):
         The heuristic value of the current game state to the specified player.
     """
 
-    # TODO: finish this function!
-    raise NotImplementedError
+    if game.is_loser(player):
+        return float("-inf")
+
+    if game.is_winner(player):
+        return float("inf")
+
+    option = 3
+
+    own_moves = game.get_legal_moves(player)
+    opp_moves = game.get_legal_moves(game.get_opponent(player))
+
+    len_own_moves = len(own_moves)
+    len_opp_moves = len(opp_moves)
+
+    if option == 1:
+        return float(len_own_moves - 3 * len_opp_moves)
+    else:
+        blank_positions = game.get_blank_spaces()
+
+        next_x, next_y = -1, -1
+
+        len_next_own_moves = 0
+        len_second_next_own_moves = 0
+
+        # Try to go deeper one level and select two position which potentially have
+        # the greatest number of moves.
+        for (x, y) in own_moves:
+            count = 0
+            for (xi, yi) in directions:
+                if (x + xi, y + yi) in blank_positions:
+                    count += 1
+
+            if count >= len_next_own_moves:
+                next_x = x
+                next_y = y
+                len_second_next_own_moves = len_next_own_moves
+                len_next_own_moves = count
+            elif count > len_second_next_own_moves:
+                len_second_next_own_moves = count
+
+        # if best next move is in opponent's moves
+        # then opponent can take it --> we should avoid this option
+        if (next_x, next_y) in opp_moves:
+            k1 = 0
+
+        if option == 2:
+            # The heuristic will finally be the sum of available moves of two next best move
+            # minus 2 * number of opponent's moves
+            return float(len_own_moves + 2 * len_next_own_moves - 3 * len_opp_moves)
+        else:
+            return float(3 * len_next_own_moves + len_second_next_own_moves - 3 * len_opp_moves)
 
 
 class CustomPlayer:
@@ -118,25 +170,31 @@ class CustomPlayer:
 
         self.time_left = time_left
 
-        # TODO: finish this function!
-
         # Perform any required initializations, including selecting an initial
         # move from the game board (i.e., an opening book), or returning
         # immediately if there are no legal moves
 
+        if len(legal_moves) == 0:
+            return no_move
+
+        strategy = self.alphabeta if self.method == 'alphabeta' else self.minimax
+
+        best_move = no_move
+
         try:
-            # The search method call (alpha beta or minimax) should happen in
-            # here in order to avoid timeout. The try/except block will
-            # automatically catch the exception raised by the search method
-            # when the timer gets close to expiring
-            pass
+            if self.iterative:
+                depth = 1
+                while True:
+                    score, best_move = strategy(game, depth)
+                    depth += 1
+            else:
+                score, best_move = strategy(game, self.search_depth)
 
         except Timeout:
             # Handle any actions required at timeout, if necessary
-            pass
+            return best_move
 
-        # Return the best move from the last completed search iteration
-        raise NotImplementedError
+        return best_move
 
     def minimax(self, game, depth, maximizing_player=True):
         """Implement the minimax search algorithm as described in the lectures.
@@ -172,8 +230,16 @@ class CustomPlayer:
         if self.time_left() < self.TIMER_THRESHOLD:
             raise Timeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        next_moves = game.get_legal_moves(game.active_player)
+
+        if depth > 0 and len(next_moves) > 0:
+            strategy = max if maximizing_player else min
+            scores = [self.minimax(game.forecast_move(move), depth - 1, not maximizing_player)[0] for move in next_moves]
+            score, best_move = strategy(zip(scores, next_moves), key=lambda x: x[0])
+            return score, best_move
+        else:
+            # Terminate state --> return main_player's score
+            return self.score(game, self), no_move
 
     def alphabeta(self, game, depth, alpha=float("-inf"), beta=float("inf"), maximizing_player=True):
         """Implement minimax search with alpha-beta pruning as described in the
@@ -216,5 +282,39 @@ class CustomPlayer:
         if self.time_left() < self.TIMER_THRESHOLD:
             raise Timeout()
 
-        # TODO: finish this function!
-        raise NotImplementedError
+        next_moves = game.get_legal_moves(game.active_player)
+
+        if depth > 0 and len(next_moves) > 0:
+            best_move = no_move
+            best_score = float("-inf") if maximizing_player else float("inf")
+
+            for move in next_moves:
+                if maximizing_player:
+                    move_score = self.alphabeta(game.forecast_move(move), depth - 1, alpha, beta, not maximizing_player)[0]
+                    if move_score > best_score:
+                        best_score = move_score
+                        best_move = move
+
+                    # best_score >= beta then it make no sense to continue because beta is upper bound
+                    # of maximizing_player
+                    if best_score >= beta:
+                        return best_score, best_move
+
+                    alpha = max(alpha, best_score)
+                else:
+                    move_score = self.alphabeta(game.forecast_move(move), depth - 1, alpha, beta, not maximizing_player)[0]
+                    if move_score < best_score:
+                        best_score = move_score
+                        best_move = move
+
+                    # best_score >= alpha then it make no sense to continue because alpha is lower bound
+                    # of minimizing_player
+                    if best_score <= alpha:
+                        return best_score, best_move
+
+                    beta = min(beta, best_score)
+
+            return best_score, best_move
+        else:
+            # Terminate state --> return main_player's score
+            return self.score(game, self), no_move
