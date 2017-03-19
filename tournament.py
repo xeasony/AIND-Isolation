@@ -164,7 +164,7 @@ def main():
                    Agent(CustomPlayer(score_fn=custom_score, **CUSTOM_ARGS), "Student")]
 
     totals = []
-    times = 1
+    times = 30
 
     for num in range(0, times):
         print(DESCRIPTION)
