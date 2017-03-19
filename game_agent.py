@@ -46,7 +46,7 @@ def custom_score(game, player):
     if game.is_winner(player):
         return float("inf")
 
-    option = 3
+    option = 2
 
     own_moves = game.get_legal_moves(player)
     opp_moves = game.get_legal_moves(game.get_opponent(player))
